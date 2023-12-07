@@ -1,19 +1,50 @@
 // app/api/extract-text.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { VisionClient } from '@google-cloud/vision';
+import { DocumentProcessorServiceClient } from '@google-cloud/documentai';
 
 export async function POST(req: NextRequest) {
   try {
-    const client = new VisionClient();
+    // Initialize the Document AI client
+    const client = new DocumentProcessorServiceClient();
 
-    // Assuming the PDF file is sent in the request body or as a reference
-    // You'll need to extract the file or its reference from `req`
-    const [result] = await client.documentTextDetection(/* Your PDF file or reference here */);
-    const fullText = result.fullTextAnnotation.text;
+    // Extract variables from environment
+    const projectId = 'ai-testbed-407219';
+    const location = 'us';
+    const processorId = '65471637ce06beb9';
 
-    return NextResponse.json({ text: fullText });
+    // Define the processor name
+    const name = `projects/${projectId}/locations/${location}/processors/${processorId}`;
+
+    // Read the file from the request
+    // Note: You need to handle file upload; this is just a placeholder
+    const fileBuffer = await req.body; // Adjust this based on your file upload logic
+
+    // Prepare the request for Document AI
+    const request = {
+      name,
+      rawDocument: {
+        content: fileBuffer.toString('base64'),
+        mimeType: 'application/pdf',
+      },
+    };
+
+    // Process the document
+    const [result] = await client.processDocument(request);
+
+    // Construct a response with the processed data
+    return new NextResponse(JSON.stringify({ result: result.document }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
   } catch (error) {
-    console.error('Error in extract-text API:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    // Handle any errors
+    return new NextResponse(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
   }
 }

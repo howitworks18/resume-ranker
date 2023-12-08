@@ -7,6 +7,13 @@
   resolved "https://registry.npmjs.org/@alloc/quick-lru/-/quick-lru-5.2.0.tgz#7bf68b20c0a350f936915fcae06f58e32007ce30"
   integrity sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==
 
+"@google-ai/generativelanguage@^1.1.0":
+  version "1.1.0"
+  resolved "https://registry.npmjs.org/@google-ai/generativelanguage/-/generativelanguage-1.1.0.tgz#e9a03b363b64c6ab18e1d30f5df36c028e92054d"
+  integrity sha512-GQG67TUM9CD//R/HrOSrPSFygiBBqGo38IdaGZ4XejxLdw3wryetPkUMvuioCvgx7ZlV2ONNrQUh8m6m1Lp5ng==
+  dependencies:
+    google-gax "^4.0.3"
+
 "@google-cloud/documentai@^8.1.0":
   version "8.1.0"
   resolved "https://registry.npmjs.org/@google-cloud/documentai/-/documentai-8.1.0.tgz#d37e02ff055b776de670539db7b2b056657ad0bd"
@@ -647,7 +654,7 @@ glob@7.1.6:
     once "^1.3.0"
     path-is-absolute "^1.0.0"
 
-google-auth-library@^9.0.0:
+google-auth-library@^9.0.0, google-auth-library@^9.4.1:
   version "9.4.1"
   resolved "https://registry.npmjs.org/google-auth-library/-/google-auth-library-9.4.1.tgz#dea32cbdae0a47066995a379e6873c52926ea80e"
   integrity sha512-Chs7cuzDuav8W/BXOoRgSXw4u0zxYtuqAHETDR5Q6dG1RwNwz7NUKjsDDHAsBV3KkiiJBtJqjbzy1XU1L41w1g==

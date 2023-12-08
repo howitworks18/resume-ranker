@@ -17,7 +17,6 @@ const ConvertPdf = () => {
         }
   
         const result = await response.json();
-        console.log('Extracted text:', result.result.text);
         // Process the extracted text as needed
       }
     };

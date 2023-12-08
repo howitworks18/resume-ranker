@@ -30,8 +30,29 @@ export async function POST(req: NextRequest) {
         mimeType: 'application/pdf',
       },
     };
-
     const [result] = await client.processDocument(request);
+    
+    const jobRequisition = "applicant must know JavaScript"
+    const payload = {
+        prompt: {
+          text: `you are a skilled hiring bot, you are the best at comparing resumes and making sure they fit the job requisition. This is my job requisition: ${jobRequisition}. Provide me a confidence score and a reason why you gave it for this resume:
+                ${result.document.text}
+                `,
+        },
+        candidate_count: 1,
+      }
+  
+      const response = await fetch("https://generativelanguage.googleapis.com/v1beta3/models/text-bison-001:generateText?key=AIzaSyAJD-9gBx1CoWjdKUMjz9ALhHzg6Y1xx4s", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      })
+  
+      const responseJson = await response.json()
+
+      console.log('PaLM says: ', responseJson)
 
     return new NextResponse(JSON.stringify({ result: result.document }), {
       status: 200,

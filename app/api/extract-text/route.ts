@@ -1,79 +1,89 @@
-// app/api/extract-text.ts
+// pages/api/extract-text.js
 import { NextRequest, NextResponse } from 'next/server';
 import { DocumentProcessorServiceClient } from '@google-cloud/documentai';
-import { TextServiceClient } from "@google-ai/generativelanguage";
-import { GoogleAuth } from "google-auth-library";
+import { helpers, PredictionServiceClient } from '@google-cloud/aiplatform';
+
+// Configuration Variables
+const projectId = 'ai-testbed-407219';
+const location = 'us';
+const processorId = '65471637ce06beb9';
+const publisher = 'google';
+const model = 'text-unicorn@001';
+
+// Helper Functions
+const buildEndpoint = (type, id) => `projects/${projectId}/locations/${location}/${type}/${id}`;
+const formatErrorResponse = (message) => JSON.stringify({ error: message });
 
 export async function POST(req: NextRequest) {
-  try {
-    // Initialize the Document AI client
-    const docAIclient = new DocumentProcessorServiceClient();
-    const projectId = 'ai-testbed-407219';
-    const location = 'us';
-    const processorId = '65471637ce06beb9';
-    const name = `projects/${projectId}/locations/${location}/processors/${processorId}`;
+    try {
+      console.log('Converting PDFs to text...');
+      const docAIclient = new DocumentProcessorServiceClient();
+      const documentAIEndpoint = buildEndpoint('processors', processorId);
+      const formatter = (text) => text.replace(/(\r\n|\n|\r)/gm, "");
+  
+      const formData = await req.formData();
+      const files = formData.getAll('file'); // Retrieve all files
+      const jobRequisitionText = formData.get('jobRequisition');
+      
+      if (files.length === 0) throw new Error('No files found in the request');
+  
+      const predictionServiceClient = new PredictionServiceClient({ apiEndpoint: 'us-central1-aiplatform.googleapis.com' });
+      const predictionEndpoint = buildEndpoint('publishers', `${publisher}/models/${model}`);
+  
+      let allResponses = [];
+  
+      for (const file of files) {
+        if (typeof file === 'string') continue; // Skip if not a file
+  
+        const fileBuffer = await file.arrayBuffer();
+        const encodedFile = Buffer.from(fileBuffer).toString('base64');
+        const documentAIRequest = {
+          name: documentAIEndpoint,
+          rawDocument: { content: encodedFile, mimeType: 'application/pdf' },
+        };
+        const [documentAIResult] = await docAIclient.processDocument(documentAIRequest);
+        const promptText = `
+        You are an advanced hiring assistant programmed with state-of-the-art capabilities in resume analysis and job matching. 
+        Your primary task is to evaluate resumes against specific job requisitions with a keen focus on essential skills required. 
+        Here's the job requisition: ${formatter(jobRequisitionText)}. Please review the following resume: ${formatter(documentAIResult.document.text)}. 
+        When analyzing the resume, first determine if the key skill required (e.g., JavaScript for a programming job) is present. 
+        If the key skill is missing, assign a score significantly lower, reflecting the lack of this essential qualification. 
+        Provide a confidence score on a scale from 0 to 100 (Confidence Score: 95/100), with the score heavily dependent on the presence of this key skill. 
+        Along with the score, include a detailed justification for your evaluation, specifically addressing whether the resume includes the key skill 
+        and how well it aligns with the job requisition. Consider other factors such as relevant experience, skills, education, and additional 
+        qualifications only if they complement the primary skill requirements. This is the format you should give the response ex: 
 
-    // Parse the multipart/form-data request
-    const formData = await req.formData();
-    const file = formData.get('file'); // Adjust the key 'file' based on your input's name attribute
-
-    if (!file || typeof file === 'string') {
-      throw new Error('File not found in the request');
-    }
-
-    // Convert file to a buffer, then to a base64 string
-    const fileBuffer = await file.arrayBuffer();
-    const encodedFile = Buffer.from(fileBuffer).toString('base64');
-
-    const documentAIRequest = {
-      name,
-      rawDocument: {
-        content: encodedFile,
-        mimeType: 'application/pdf',
-      },
-    };
-    const [documentAIResult] = await docAIclient.processDocument(documentAIRequest);
-    console.log('Starting resume assessment...');
-    // PaLM API integration
-    const MODEL_NAME = "models/text-bison-001";
-    const API_KEY = process.env.PALM_API_KEY; // Ensure this is set in your environment variables
-    
-    const palmClient = new TextServiceClient({
-        authClient: new GoogleAuth().fromAPIKey(API_KEY),
-    });
-    
-    
-    const jobRequisition = "applicant must know JavaScript";
-    const messageContent = `You are an advanced hiring assistant programmed with state-of-the-art capabilities in resume analysis and job matching. Your task is to evaluate resumes against specific job requisitions meticulously. Here's the job requisition: ${jobRequisition}. Please review the following resume: ${documentAIResult.document.text}. After a thorough analysis, provide a confidence score on a scale from 0 to 100, indicating how well this resume matches the job requisition. Along with the score, include a detailed justification for your evaluation, highlighting key aspects of the resume that align with or deviate from the job requirements. Consider factors such as relevant experience, skills, education, and any additional qualifications specified in the job requisition. If the applicant posses one or less of the required skills give them a score of 50 or below, the more required skills the posses, give them a higher score.`
-
-    const palmRequest = {
-        model: MODEL_NAME,
-        temperature: 0.0,
-        candidateCount: 1,
-        prompt: {
-            context: `Evaluate this resume against the job requisition: ${jobRequisition}`,
-            text: messageContent
+        Confidence Score: [confidence score here]
+        [new line here]
+        Justification: [why they are or are not qualified in sentence formant]
+        
+        respond with a max of 256 tokens please answer in spanish` //please answer in spanish
+        const prompt = { prompt: promptText.replace(/(\r\n|\n|\r)/gm, "") };
+        const instances = [helpers.toValue(prompt)];
+        const parameters = helpers.toValue({
+            temperature: 0.0, maxOutputTokens: 256, topP: 0.95, topK: 40, maxResults: 1
+          });
+          //add an if else statement
+        console.log('Asking PaLM...');
+        const [predictionResponse] = await predictionServiceClient.predict({
+          endpoint: predictionEndpoint, instances, parameters,
+        });
+        const predictions = predictionResponse.predictions;
+        
+        allResponses.push({
+            fileName: file.name,
+            response: predictions[0].structValue.fields.content.stringValue
+          });
         }
+  
+        return new NextResponse(JSON.stringify({ response: allResponses }), {
+            status: 200, headers: { 'Content-Type': 'application/json' },
+        });
+  
+    } catch (error) {
+      console.warn('Error: ', error.message);
+      return new NextResponse(formatErrorResponse(error.message), {
+        status: 500, headers: { 'Content-Type': 'application/json' },
+      });
     }
-
-    const palmResult = await palmClient.generateText(palmRequest);
-    const palmResponse = palmResult[0].candidates[0].output;
-
-    console.log('PaLM says: ', palmResponse);
-
-    return new NextResponse(JSON.stringify({ result: documentAIResult.document, palmResponse }), {
-      status: 200,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-  } catch (error) {
-    console.warn('extractor error: ', error.message);
-    return new NextResponse(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
   }
-}
